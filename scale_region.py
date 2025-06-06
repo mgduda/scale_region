@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+
 def stereo_project(lam, phi, lam_0, phi_1):
     from math import sin, cos
     R = 1.0
@@ -87,6 +88,31 @@ def sphere_distance(a, b):
     return 2.0 * asin(c / 2.0)
 
 
+def sphere_angle(A, B, C):
+    """: Computes the angle between arcs AB and AC, given points A, B, and C
+    Equation numbers w.r.t. http://mathworld.wolfram.com/SphericalTrigonometry.html
+    """
+    import numpy as np
+    import math
+
+    a = sphere_distance(B, C)
+    b = sphere_distance(A, C)
+    c = sphere_distance(A, B)
+
+    AB = B - A
+    AC = C - A
+
+    D = np.cross(AB, AC)
+
+    s = 0.5 * (a + b + c)
+    sin_angle = math.sqrt(min(1.0,max(0.0,(math.sin(s-b)*math.sin(s-c))/(math.sin(b)*math.sin(c))))) # Eqn. (28)
+
+    if (np.dot(D, A) >= 0.0):
+            return 2.0 * math.asin(max(min(sin_angle,1.0),-1.0))
+    else:
+            return -2.0 * math.asin(max(min(sin_angle,1.0),-1.0))
+
+
 def triangle_area(A, B, C):
     from math import sqrt, tan, atan
 
@@ -152,6 +178,7 @@ if __name__ == '__main__':
     import os
     import sys
     import shutil
+    import math
     import numpy as np
     from netCDF4 import Dataset
 
@@ -220,7 +247,7 @@ if __name__ == '__main__':
     print('Recomputing edge coordinates...')
     scale_location(mesh, 'Edge', scalefac, cenlon, cenlat)
 
-    scale_var(mesh, 'nominalMinDc', scalefac)
+    # scale_var(mesh, 'nominalMinDc', scalefac)
 
 
     #
@@ -235,6 +262,8 @@ if __name__ == '__main__':
     xEdge = mesh.variables['xEdge'][:]
     yEdge = mesh.variables['yEdge'][:]
     zEdge = mesh.variables['zEdge'][:]
+    latEdge = mesh.variables['latEdge'][:]
+    lonEdge = mesh.variables['lonEdge'][:]
 
     nEdgesOnCell = mesh.variables['nEdgesOnCell'][:]
     nEdgesOnEdge = mesh.variables['nEdgesOnEdge'][:]
@@ -421,5 +450,35 @@ if __name__ == '__main__':
 
     mesh.variables['weightsOnEdge'][:] = weightsOnEdge_new
     weightsOnEdge = weightsOnEdge_new
+
+    #
+    # angleEdge
+    #
+    print('Recomputing angleEdge...')
+    angleEdge_new = np.zeros((nEdges))
+    for i in range(nEdges):
+        a = np.array([xVertex[verticesOnEdge[i, 0]],
+                      yVertex[verticesOnEdge[i, 0]],
+                      zVertex[verticesOnEdge[i, 0]]
+                     ])
+
+        b = np.array([math.cos(lonEdge[i]) * math.sin(latEdge[i]),
+                      math.sin(lonEdge[i]) * math.sin(latEdge[i]),
+                      -math.cos(latEdge[i])
+                     ])
+        b = a - b
+        b = b / np.linalg.norm(b)
+
+        c = np.array([xVertex[verticesOnEdge[i, 1]],
+                      yVertex[verticesOnEdge[i, 1]],
+                      zVertex[verticesOnEdge[i, 1]]
+                     ])
+
+        angleEdge_new[i] = sphere_angle(a, b, c)
+
+    print(np.min(angleEdge_new - mesh.variables['angleEdge'][:]),
+          np.max(angleEdge_new - mesh.variables['angleEdge'][:]))
+
+    mesh.variables['angleEdge'][:] = angleEdge_new
 
     mesh.close()
