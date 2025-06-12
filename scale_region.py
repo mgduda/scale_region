@@ -235,8 +235,8 @@ if __name__ == '__main__':
     maxEdges2 = mesh.dimensions['maxEdges2'].size
 
     scalefac = args.scale_fac
-    cenlat = args.tan_lat
-    cenlon = args.tan_lon
+    cenlat = args.tan_lat * math.pi / 180.0
+    cenlon = args.tan_lon * math.pi / 180.0
 
     print('Recomputing cell coordinates...')
     scale_location(mesh, 'Cell', scalefac, cenlon, cenlat)
