@@ -1,11 +1,18 @@
 #!/usr/bin/env python3
 
 
-def stereo_project(lam, phi, lam_0, phi_1):
+def map_scale_stereo(lam, phi, lam_0, phi_1):
     from math import sin, cos
     R = 1.0
     k = 2.0 * R / (1.0 + sin(phi_1) * sin(phi)
                    + cos(phi_1) * cos(phi) * cos(lam - lam_0))
+
+    return k
+
+def stereo_project(lam, phi, lam_0, phi_1):
+    from math import sin, cos
+    R = 1.0
+    k = map_scale_stereo(lam, phi, lam_0, phi_1)
     x = k * cos(phi) * sin(lam - lam_0)
     y = k * (cos(phi_1) * sin(phi)
              - sin(phi_1) * cos(phi) * cos(lam - lam_0))
@@ -44,6 +51,17 @@ def cart_to_geo(x, y, z):
 def scale_var(meshfile, varname, scalefac):
     tmp = meshfile.variables[varname][:]
     meshfile.variables[varname][:] = tmp / scalefac
+
+
+def get_map_scale(meshfile, loc, cenlon, cenlat):
+    lonLoc = meshfile.variables['lon'+loc][:]
+    latLoc = meshfile.variables['lat'+loc][:]
+
+    mapScale = np.zeros(len(lonLoc))
+    for i in range(len(lonLoc)):
+        mapScale[i] = map_scale_stereo(lonLoc[i], latLoc[i], cenlon, cenlat)
+
+    return mapScale
 
 
 def scale_location(meshfile, loc, scalefac, cenlon, cenlat):
@@ -238,6 +256,8 @@ if __name__ == '__main__':
     cenlat = args.tan_lat * math.pi / 180.0
     cenlon = args.tan_lon * math.pi / 180.0
 
+    map_scale_cell = get_map_scale(mesh, 'Cell', cenlon, cenlat)
+
     print('Recomputing cell coordinates...')
     scale_location(mesh, 'Cell', scalefac, cenlon, cenlat)
 
@@ -285,6 +305,8 @@ if __name__ == '__main__':
 
     weightsOnEdge = mesh.variables['weightsOnEdge'][:]
 
+    meshDensity = mesh.variables['meshDensity'][:]
+
     #
     # dcEdge
     #
@@ -302,7 +324,6 @@ if __name__ == '__main__':
 
     mesh.variables['dcEdge'][:] = dcEdge_new
     dcEdge = dcEdge_new
-
     #
     # dvEdge
     #
@@ -354,6 +375,14 @@ if __name__ == '__main__':
 
     mesh.variables['areaCell'][:] = areaCell_new
     areaCell = areaCell_new
+
+    # Assuming the rescaled meshDensity is of the form rho = (dx_min/dx)^4,
+    # where dx is the local grid spacing and dx_min is the minimum grid spacing,
+    # we can recompute meshDensity_new as meshDensity * (k_min / map_scale_cell)**4,
+    #  where k_min is the minimum value of map_scale_cell.
+    k_min = np.min(map_scale_cell)
+    meshDensity_new = meshDensity * (k_min / map_scale_cell)**4
+    mesh.variables['meshDensity'][:] = meshDensity_new
 
     #
     # kiteAreasOnVertex
