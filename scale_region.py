@@ -256,7 +256,7 @@ if __name__ == '__main__':
     cenlat = args.tan_lat * math.pi / 180.0
     cenlon = args.tan_lon * math.pi / 180.0
 
-    map_scale_cell = get_map_scale(mesh, 'Cell', cenlon, cenlat)
+    map_scale_orig = get_map_scale(mesh, 'Cell', cenlon, cenlat)
 
     print('Recomputing cell coordinates...')
     scale_location(mesh, 'Cell', scalefac, cenlon, cenlat)
@@ -269,6 +269,8 @@ if __name__ == '__main__':
 
     scale_var(mesh, 'nominalMinDc', scalefac)
 
+
+    map_scale_new = get_map_scale(mesh, 'Cell', cenlon, cenlat)
 
     #
     # Recompute distances and areas after scaling
@@ -378,10 +380,13 @@ if __name__ == '__main__':
 
     # Assuming the rescaled meshDensity is of the form rho = (dx_min/dx)^4,
     # where dx is the local grid spacing and dx_min is the minimum grid spacing,
-    # we can recompute meshDensity_new as meshDensity * (k_min / map_scale_cell)**4,
-    #  where k_min is the minimum value of map_scale_cell.
-    k_min = np.min(map_scale_cell)
-    meshDensity_new = meshDensity * (k_min / map_scale_cell)**4
+    # we can recompute meshDensity_new as below
+    #  where k_min is the minimum value of map scale factor.
+    k_1_min = np.min(map_scale_orig)
+    k_2_min = np.min(map_scale_new)
+    # Not sure if the additional factor is needed, leaving it commented for now
+    #meshDensity_new = meshDensity * ((map_scale_new / map_scale_orig)*(k_1_min/k_2_min))**4
+    meshDensity_new = meshDensity * ((map_scale_new / map_scale_orig))**4
     mesh.variables['meshDensity'][:] = meshDensity_new
 
     #
